@@ -12,15 +12,14 @@ if __name__ == "__main__":
             print(f"  {key} = {os.environ[key]}")
     print("--------------------------------")
 
-    # Infrlo Buildpack default port detection (3000 / 8080)
+    # Infrlo Python default port (8000)
     port_env = os.getenv("PORT")
     if port_env:
         port = int(port_env)
         print(f"🌐 Using system PORT environment variable: {port}")
     else:
-        # Buildpack default port is 3000
-        port = int(os.getenv("CONTAINER_PORT", "3000"))
-        print(f"🌐 PORT environment variable not found, using Buildpack default port: {port}")
+        port = int(os.getenv("CONTAINER_PORT", "8000"))
+        print(f"🌐 PORT environment variable not found, using Python standard port: {port}")
 
     print(f"🚀 Starting Uvicorn server on 0.0.0.0:{port}...")
     uvicorn.run(
