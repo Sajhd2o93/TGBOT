@@ -14,10 +14,16 @@ from bot import register_bot_handlers
 async def lifespan(app: FastAPI):
     # Startup logic
     print("🚀 Initializing SQLite database...")
-    await init_db()
+    try:
+        await init_db()
+    except Exception as e:
+        print(f"Database init error: {e}")
     
     print("🤖 Registering Telegram bot handlers...")
-    register_bot_handlers(tg_app)
+    try:
+        register_bot_handlers(tg_app)
+    except Exception as e:
+        print(f"Bot handlers registration error: {e}")
     
     print("⚡ Starting Telegram MTProto client...")
     await start_tg_client()
@@ -37,6 +43,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def read_index():
     async with aiofiles.open("static/index.html", "r", encoding="utf-8") as f:
         return await f.read()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "tg_connected": tg_app.is_connected}
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None)):

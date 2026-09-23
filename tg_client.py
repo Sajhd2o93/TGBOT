@@ -6,20 +6,36 @@ from config import BOT_TOKEN, API_ID, API_HASH, CHANNEL_ID
 # Initialize Pyrogram Bot Client
 tg_app = Client(
     "tg_cloud_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
+    api_id=API_ID if API_ID else 12345,
+    api_hash=API_HASH if API_HASH else "placeholder_hash",
+    bot_token=BOT_TOKEN if BOT_TOKEN else "placeholder_token",
     in_memory=True
 )
 
 async def start_tg_client():
-    await tg_app.start()
+    if not BOT_TOKEN or not API_ID or not API_HASH or API_ID == 0:
+        print("⚠️ WARNING: BOT_TOKEN, API_ID, or API_HASH is missing in Environment Variables!")
+        return False
+    try:
+        await tg_app.start()
+        print("✅ Telegram MTProto client started successfully!")
+        return True
+    except Exception as e:
+        print(f"❌ Error starting Telegram Pyrogram client: {e}")
+        return False
 
 async def stop_tg_client():
-    await tg_app.stop()
+    try:
+        if tg_app.is_connected:
+            await tg_app.stop()
+    except Exception as e:
+        print(f"Error stopping Telegram client: {e}")
 
 async def upload_to_channel(file_path: str, filename: str, progress_callback=None):
     """Uploads a file to the Telegram storage channel and returns the message_id."""
+    if not tg_app.is_connected:
+        raise ValueError("Telegram Bot is not connected. Please verify BOT_TOKEN, API_ID, API_HASH, and CHANNEL_ID in Infrlo environment variables.")
+
     msg = await tg_app.send_document(
         chat_id=CHANNEL_ID,
         document=file_path,
@@ -31,6 +47,9 @@ async def upload_to_channel(file_path: str, filename: str, progress_callback=Non
 
 async def stream_file_from_channel(message_id: int):
     """Yields chunks of the file stored in Telegram channel message."""
+    if not tg_app.is_connected:
+        raise ValueError("Telegram Bot is not connected. Please verify BOT_TOKEN, API_ID, API_HASH, and CHANNEL_ID in Infrlo environment variables.")
+
     msg = await tg_app.get_messages(CHANNEL_ID, message_id)
     if not msg or not (msg.document or msg.video or msg.audio or msg.photo):
         raise ValueError("File not found in Telegram storage channel.")
@@ -40,6 +59,8 @@ async def stream_file_from_channel(message_id: int):
 
 async def delete_from_channel(message_id: int):
     """Deletes the file message from Telegram channel."""
+    if not tg_app.is_connected:
+        return
     try:
         await tg_app.delete_messages(CHANNEL_ID, message_id)
     except Exception as e:
