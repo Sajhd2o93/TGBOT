@@ -1,15 +1,16 @@
 import os
 import asyncio
 from pyrogram import Client
+from pyrogram.errors import FloodWait, RPCError
 from config import BOT_TOKEN, API_ID, API_HASH, CHANNEL_ID
 
-# Initialize Pyrogram Bot Client
+# Initialize Pyrogram Bot Client with session file persistence
 tg_app = Client(
     "tg_cloud_bot",
     api_id=API_ID if API_ID else 12345,
     api_hash=API_HASH if API_HASH else "placeholder_hash",
     bot_token=BOT_TOKEN if BOT_TOKEN else "placeholder_token",
-    in_memory=True
+    workdir="."
 )
 
 async def start_tg_client():
@@ -20,6 +21,10 @@ async def start_tg_client():
         await tg_app.start()
         print("✅ Telegram MTProto client started successfully!")
         return True
+    except FloodWait as e:
+        print(f"⌛ Telegram FLOOD_WAIT: Telegram requires a wait of {e.value} seconds (~{int(e.value//60)} mins) before authorizing this bot token again.")
+        print("💡 The Web App UI is active. Telegram file uploads/downloads will resume after the wait time expires.")
+        return False
     except Exception as e:
         print(f"❌ Error starting Telegram Pyrogram client: {e}")
         return False
@@ -34,7 +39,7 @@ async def stop_tg_client():
 async def upload_to_channel(file_path: str, filename: str, progress_callback=None):
     """Uploads a file to the Telegram storage channel and returns the message_id."""
     if not tg_app.is_connected:
-        raise ValueError("Telegram Bot is not connected. Please verify BOT_TOKEN, API_ID, API_HASH, and CHANNEL_ID in Infrlo environment variables.")
+        raise ValueError("Telegram Bot is not connected. Please check if Telegram FLOOD_WAIT timer is active or check credentials.")
 
     msg = await tg_app.send_document(
         chat_id=CHANNEL_ID,
@@ -48,7 +53,7 @@ async def upload_to_channel(file_path: str, filename: str, progress_callback=Non
 async def stream_file_from_channel(message_id: int):
     """Yields chunks of the file stored in Telegram channel message."""
     if not tg_app.is_connected:
-        raise ValueError("Telegram Bot is not connected. Please verify BOT_TOKEN, API_ID, API_HASH, and CHANNEL_ID in Infrlo environment variables.")
+        raise ValueError("Telegram Bot is not connected. Please check if Telegram FLOOD_WAIT timer is active or check credentials.")
 
     msg = await tg_app.get_messages(CHANNEL_ID, message_id)
     if not msg or not (msg.document or msg.video or msg.audio or msg.photo):
