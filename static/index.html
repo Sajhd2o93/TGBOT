@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TG Cloud Drive</title>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-mode">
+
+    <!-- App Container -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="navbar">
+            <div class="logo">
+                <i class="fa-solid fa-cloud-bolt logo-icon"></i>
+                <span class="logo-text">TG Drive</span>
+            </div>
+            
+            <div class="search-bar">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Поиск файлов на диске...">
+            </div>
+
+            <div class="nav-actions">
+                <button id="uploadBtn" class="btn btn-primary">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span class="btn-text">Загрузить</span>
+                </button>
+                <input type="file" id="fileInput" multiple style="display: none;">
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Drop Zone Overlay -->
+            <div id="dropZone" class="drop-zone hidden">
+                <div class="drop-zone-content">
+                    <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                    <p>Перетащите файлы сюда для загрузки</p>
+                </div>
+            </div>
+
+            <!-- Upload Progress Container -->
+            <div id="uploadProgressContainer" class="upload-progress-container hidden">
+                <div class="upload-progress-header">
+                    <span id="uploadStatusText">Загрузка файлов...</span>
+                    <span id="uploadPercent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progressBarFill" class="progress-bar-fill"></div>
+                </div>
+            </div>
+
+            <!-- Toolbar & Controls -->
+            <div class="content-header">
+                <div class="stats-info">
+                    <span id="filesCount">0 файлов</span>
+                    <span class="dot-separator">•</span>
+                    <span id="totalSize">0 MB</span>
+                </div>
+                <div class="view-options">
+                    <button id="refreshBtn" class="icon-btn" title="Обновить"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Files List Section -->
+            <div class="files-wrapper">
+                <div id="loadingSpinner" class="spinner-container">
+                    <i class="fa-solid fa-circle-notch fa-spin spinner"></i>
+                </div>
+
+                <div id="emptyState" class="empty-state hidden">
+                    <i class="fa-solid fa-folder-open empty-icon"></i>
+                    <h3>Файлов пока нет</h3>
+                    <p>Нажмите «Загрузить» или перетащите файлы в окно</p>
+                </div>
+
+                <table id="filesTable" class="files-table hidden">
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th>Размер</th>
+                            <th>Дата добавления</th>
+                            <th class="actions-col">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="filesList">
+                        <!-- File rows rendered dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

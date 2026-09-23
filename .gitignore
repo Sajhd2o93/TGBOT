@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+*.db
+temp_uploads/
+tg_cloud_bot.session
+tg_cloud_bot.session-journal
+.DS_Store
