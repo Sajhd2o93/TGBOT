@@ -1,7 +1,8 @@
 import os
 import aiofiles
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -36,6 +37,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Telegram Cloud Drive", lifespan=lifespan)
 
+# Detailed Request/Response Logging Middleware
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "unknown"
+    print(f"📥 [HTTP IN] {request.method} {request.url.path} | Client: {client_ip}")
+    
+    try:
+        response = await call_next(request)
+        process_time = (time.time() - start_time) * 1000
+        print(f"📤 [HTTP OUT] {request.method} {request.url.path} -> Status: {response.status_code} | Time: {process_time:.2f}ms")
+        return response
+    except Exception as e:
+        print(f"❌ [HTTP ERROR] {request.method} {request.url.path} -> Exception: {str(e)}")
+        raise e
+
 # Mount static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -46,7 +63,7 @@ async def read_index():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "tg_connected": tg_app.is_connected}
+    return {"status": "ok", "tg_connected": tg_app.is_connected, "port": PORT}
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None)):
@@ -58,17 +75,14 @@ async def upload_file(file: UploadFile = File(...)):
     temp_path = os.path.join(UPLOAD_DIR, file.filename)
     
     try:
-        # Save uploaded file to temp directory in 4MB chunks
         async with aiofiles.open(temp_path, "wb") as out_file:
             while chunk := await file.read(4 * 1024 * 1024):
                 await out_file.write(chunk)
 
         file_size = os.path.getsize(temp_path)
 
-        # Upload file to Telegram Channel
         message_id = await upload_to_channel(temp_path, file.filename)
 
-        # Add record to Database
         file_id = await add_file(
             filename=file.filename,
             file_size=file_size,
@@ -84,10 +98,10 @@ async def upload_file(file: UploadFile = File(...)):
         }
 
     except Exception as e:
+        print(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
     finally:
-        # Remove temporary file after upload
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
@@ -117,7 +131,6 @@ async def delete_file(file_id: int):
     if not message_id:
         raise HTTPException(status_code=404, detail="File not found in database")
 
-    # Delete message from Telegram channel
     await delete_from_channel(message_id)
     return {"status": "success", "message": "File deleted"}
 
