@@ -1,35 +1,36 @@
 import os
 import asyncio
 from pyrogram import Client
-from pyrogram.errors import FloodWait, RPCError
+from pyrogram.errors import FloodWait
 from config import BOT_TOKEN, API_ID, API_HASH, CHANNEL_ID
+from bot import register_bot_handlers
 
-# Initialize Pyrogram Bot Client
-tg_app = Client(
-    "tg_cloud_bot",
-    api_id=API_ID if API_ID else 12345,
-    api_hash=API_HASH if API_HASH else "placeholder_hash",
-    bot_token=BOT_TOKEN if BOT_TOKEN else "placeholder_token",
-    workdir="."
-)
-
-_is_started = False
+tg_app = None
 STORAGE_CHAT_ID = None
 
 async def start_tg_client():
-    global _is_started, STORAGE_CHAT_ID, tg_app
-    if _is_started and tg_app.is_connected:
-        return True
+    global tg_app, STORAGE_CHAT_ID
 
     if not BOT_TOKEN or not API_ID or not API_HASH or API_ID == 0:
         print("⚠️ WARNING: BOT_TOKEN, API_ID, or API_HASH is missing in Environment Variables!")
         return False
+
+    loop = asyncio.get_running_loop()
+    
+    # Initialize Client strictly within the running event loop
+    tg_app = Client(
+        "tg_cloud_bot",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        bot_token=BOT_TOKEN,
+        workdir="."
+    )
+    tg_app.loop = loop
+
     try:
-        # Bind Pyrogram to current running asyncio event loop
-        tg_app.loop = asyncio.get_running_loop()
-        
         await tg_app.start()
-        _is_started = True
+        register_bot_handlers(tg_app)
+        
         me = await tg_app.get_me()
         print(f"✅ Telegram Bot @{me.username} (ID: {me.id}) connected successfully!")
         
@@ -51,18 +52,17 @@ async def start_tg_client():
         return False
 
 async def stop_tg_client():
-    global _is_started
+    global tg_app
     try:
-        if tg_app.is_connected:
+        if tg_app and tg_app.is_connected:
             await tg_app.stop()
-            _is_started = False
     except Exception as e:
         print(f"Error stopping Telegram client: {e}")
 
 async def upload_to_channel(file_path: str, filename: str):
     """Uploads a file to the Telegram storage channel and returns the message_id."""
-    global STORAGE_CHAT_ID
-    if not tg_app.is_connected:
+    global tg_app, STORAGE_CHAT_ID
+    if not tg_app or not tg_app.is_connected:
         raise ValueError("Telegram Bot is not connected yet.")
 
     target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
@@ -92,8 +92,8 @@ async def upload_to_channel(file_path: str, filename: str):
 
 async def stream_file_from_channel(message_id: int):
     """Yields chunks of the file stored in Telegram channel message."""
-    global STORAGE_CHAT_ID
-    if not tg_app.is_connected:
+    global tg_app, STORAGE_CHAT_ID
+    if not tg_app or not tg_app.is_connected:
         raise ValueError("Telegram Bot is not connected.")
 
     target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
@@ -106,8 +106,8 @@ async def stream_file_from_channel(message_id: int):
 
 async def delete_from_channel(message_id: int):
     """Deletes the file message from Telegram channel."""
-    global STORAGE_CHAT_ID
-    if not tg_app.is_connected:
+    global tg_app, STORAGE_CHAT_ID
+    if not tg_app or not tg_app.is_connected:
         return
     try:
         target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID

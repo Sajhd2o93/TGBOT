@@ -6,51 +6,27 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import UPLOAD_DIR, PORT
+from config import UPLOAD_DIR
 from database import init_db, add_file, get_all_files, get_file_by_id, delete_file_by_id
 from tg_client import tg_app, start_tg_client, stop_tg_client, upload_to_channel, stream_file_from_channel, delete_from_channel
-from bot import register_bot_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
     print("🚀 Initializing SQLite database...")
     try:
         await init_db()
     except Exception as e:
         print(f"Database init error: {e}")
     
-    print("🤖 Registering Telegram bot handlers...")
-    try:
-        register_bot_handlers(tg_app)
-    except Exception as e:
-        print(f"Bot handlers registration error: {e}")
-    
     print("⚡ Starting Telegram MTProto client...")
     await start_tg_client()
     
     yield
     
-    # Shutdown logic
     print("🛑 Stopping Telegram client...")
     await stop_tg_client()
 
 app = FastAPI(title="Telegram Cloud Drive", lifespan=lifespan)
-
-# Detailed Request/Response Logging Middleware
-@app.middleware("http")
-async def log_requests_middleware(request: Request, call_next):
-    start_time = time.time()
-    client_ip = request.client.host if request.client else "unknown"
-    
-    try:
-        response = await call_next(request)
-        process_time = (time.time() - start_time) * 1000
-        print(f"📤 [HTTP {response.status_code}] {request.method} {request.url.path} | Time: {process_time:.1f}ms | Client: {client_ip}")
-        return response
-    except Exception as e:
-        print(f"❌ [HTTP EXCEPTION] {request.method} {request.url.path} -> {type(e).__name__}: {str(e)}")
-        raise e
 
 # Mount static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -62,7 +38,7 @@ async def read_index():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "tg_connected": tg_app.is_connected}
+    return {"status": "ok"}
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None)):
@@ -137,7 +113,3 @@ async def delete_file(file_id: int):
 
     await delete_from_channel(message_id)
     return {"status": "success", "message": "File deleted"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
