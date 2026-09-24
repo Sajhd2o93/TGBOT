@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebar = document.getElementById('sidebar');
     const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
     const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
-    const navItems = document.querySelectorAll('.nav-item');
+    const navItems = document.querySelectorAll('.nav-btn');
 
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     const themeIcon = document.getElementById('themeIcon');
@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const uploadBanner = document.getElementById('uploadBanner');
     const uploadFilename = document.getElementById('uploadFilename');
-    const uploadStatus = document.getElementById('uploadStatus');
     const uploadPercent = document.getElementById('uploadPercent');
     const progressIndicator = document.getElementById('progressIndicator');
 
@@ -34,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortBtn = document.getElementById('sortBtn');
     const sortMenu = document.getElementById('sortMenu');
     const sortLabel = document.getElementById('sortLabel');
-    const sortOptions = document.querySelectorAll('.sort-option');
+    const sortOptions = document.querySelectorAll('.sort-item');
 
     const viewGridBtn = document.getElementById('viewGridBtn');
     const viewListBtn = document.getElementById('viewListBtn');
@@ -77,19 +76,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = localStorage.getItem('tg_drive_view') || 'grid';
     let currentTheme = localStorage.getItem('tg_drive_theme') || 'ayu-dark';
     let filesData = [];
-    let activePreviewFile = null;
 
     // Theme Management (Ayu Dark & Ayu Light)
     function applyTheme(theme) {
         currentTheme = theme;
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('tg_drive_theme', theme);
-        themeIcon.textContent = theme === 'ayu-dark' ? 'light_mode' : 'dark_mode';
+        if (themeIcon) {
+            themeIcon.textContent = theme === 'ayu-dark' ? 'light_mode' : 'dark_mode';
+        }
     }
 
-    themeToggleBtn.addEventListener('click', () => {
-        applyTheme(currentTheme === 'ayu-dark' ? 'ayu-light' : 'ayu-dark');
-    });
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            applyTheme(currentTheme === 'ayu-dark' ? 'ayu-light' : 'ayu-dark');
+        });
+    }
     applyTheme(currentTheme);
 
     // View Management (Grid & List)
@@ -97,25 +99,25 @@ document.addEventListener('DOMContentLoaded', () => {
         currentView = view;
         localStorage.setItem('tg_drive_view', view);
         if (view === 'grid') {
-            viewGridBtn.classList.add('active');
-            viewListBtn.classList.remove('active');
-            filesGrid.classList.remove('hidden');
-            filesTableWrapper.classList.add('hidden');
+            if (viewGridBtn) viewGridBtn.classList.add('active');
+            if (viewListBtn) viewListBtn.classList.remove('active');
+            if (filesGrid) filesGrid.classList.remove('hidden');
+            if (filesTableWrapper) filesTableWrapper.classList.add('hidden');
         } else {
-            viewListBtn.classList.add('active');
-            viewGridBtn.classList.remove('active');
-            filesTableWrapper.classList.remove('hidden');
-            filesGrid.classList.add('hidden');
+            if (viewListBtn) viewListBtn.classList.add('active');
+            if (viewGridBtn) viewGridBtn.classList.remove('active');
+            if (filesTableWrapper) filesTableWrapper.classList.remove('hidden');
+            if (filesGrid) filesGrid.classList.add('hidden');
         }
     }
 
-    viewGridBtn.addEventListener('click', () => setView('grid'));
-    viewListBtn.addEventListener('click', () => setView('list'));
+    if (viewGridBtn) viewGridBtn.addEventListener('click', () => setView('grid'));
+    if (viewListBtn) viewListBtn.addEventListener('click', () => setView('list'));
     setView(currentView);
 
     // Mobile Sidebar Drawer
-    sidebarOpenBtn.addEventListener('click', () => sidebar.classList.add('open'));
-    sidebarCloseBtn.addEventListener('click', () => sidebar.classList.remove('open'));
+    if (sidebarOpenBtn) sidebarOpenBtn.addEventListener('click', () => sidebar.classList.add('open'));
+    if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 
     // Category Navigation
     const categoryTitles = {
@@ -132,82 +134,98 @@ document.addEventListener('DOMContentLoaded', () => {
             navItems.forEach(i => i.classList.remove('active'));
             item.classList.add('active');
             currentCategory = item.dataset.category;
-            currentCategoryTitle.textContent = categoryTitles[currentCategory] || 'Файлы';
+            if (currentCategoryTitle) {
+                currentCategoryTitle.textContent = categoryTitles[currentCategory] || 'Файлы';
+            }
             
-            if (currentCategory === 'trash') {
-                trashControls.classList.remove('hidden');
-            } else {
-                trashControls.classList.add('hidden');
+            if (trashControls) {
+                trashControls.classList.toggle('hidden', currentCategory !== 'trash');
             }
 
-            sidebar.classList.remove('open');
+            if (sidebar) sidebar.classList.remove('open');
             loadFiles();
         });
     });
 
     // Sort Dropdown
-    sortBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        sortMenu.classList.toggle('hidden');
-    });
-
-    document.addEventListener('click', () => sortMenu.classList.add('hidden'));
-
-    sortOptions.forEach(opt => {
-        opt.addEventListener('click', () => {
-            sortOptions.forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            currentSort = opt.dataset.sort;
-            sortLabel.textContent = opt.textContent;
-            sortMenu.classList.add('hidden');
-            renderFiles();
+    if (sortBtn && sortMenu) {
+        sortBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sortMenu.classList.toggle('hidden');
         });
-    });
+
+        document.addEventListener('click', () => sortMenu.classList.add('hidden'));
+
+        sortOptions.forEach(opt => {
+            opt.addEventListener('click', () => {
+                sortOptions.forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                currentSort = opt.dataset.sort;
+                if (sortLabel) sortLabel.textContent = opt.textContent;
+                sortMenu.classList.add('hidden');
+                renderFiles();
+            });
+        });
+    }
 
     // Search Input
     let searchTimer;
-    searchInput.addEventListener('input', (e) => {
-        const val = e.target.value.trim();
-        clearSearchBtn.classList.toggle('hidden', val.length === 0);
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-            currentSearch = val;
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            if (clearSearchBtn) clearSearchBtn.classList.toggle('hidden', val.length === 0);
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                currentSearch = val;
+                loadFiles();
+            }, 250);
+        });
+    }
+
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearchBtn.classList.add('hidden');
+            currentSearch = '';
             loadFiles();
-        }, 250);
-    });
+        });
+    }
 
-    clearSearchBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        clearSearchBtn.classList.add('hidden');
-        currentSearch = '';
-        loadFiles();
-    });
-
-    refreshBtn.addEventListener('click', () => loadFiles());
+    if (refreshBtn) refreshBtn.addEventListener('click', () => loadFiles());
 
     // Fetch Files from Backend
     async function loadFiles() {
         showLoading(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+            showLoading(false);
+            showToast('Таймаут подключения к серверу', 'error');
+        }, 8000);
+
         try {
             const params = new URLSearchParams();
             if (currentSearch) params.append('search', currentSearch);
             params.append('category', currentCategory);
 
-            const res = await fetch(`/api/files?${params.toString()}`);
+            const res = await fetch(`/api/files?${params.toString()}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!res.ok) throw new Error('Не удалось получить список файлов');
 
             const data = await res.json();
             filesData = data.files || [];
             
-            // Update counts in UI
-            countAll.textContent = data.total_active || 0;
-            countTrash.textContent = data.total_trash || 0;
-            storageTotalFiles.textContent = `${data.total_active || 0} объектов`;
+            if (countAll) countAll.textContent = data.total_active || 0;
+            if (countTrash) countTrash.textContent = data.total_trash || 0;
+            if (storageTotalFiles) storageTotalFiles.textContent = `${data.total_active || 0} файлов`;
 
             renderFiles();
         } catch (err) {
-            showToast(err.message, 'error');
+            clearTimeout(timeoutId);
             showLoading(false);
+            if (err.name !== 'AbortError') {
+                showToast(err.message, 'error');
+            }
         }
     }
 
@@ -215,11 +233,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderFiles() {
         showLoading(false);
 
-        // Client-side sorting
         const sorted = [...filesData].sort((a, b) => {
             switch (currentSort) {
-                case 'name-asc': return a.filename.localeCompare(b.filename);
-                case 'name-desc': return b.filename.localeCompare(a.filename);
+                case 'name-asc': return (a.filename || '').localeCompare(b.filename || '');
+                case 'name-desc': return (b.filename || '').localeCompare(a.filename || '');
                 case 'size-asc': return (a.file_size || 0) - (b.file_size || 0);
                 case 'size-desc': return (b.file_size || 0) - (a.file_size || 0);
                 case 'date-asc': return (a.id || 0) - (b.id || 0);
@@ -228,92 +245,95 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        itemsCounter.textContent = `${sorted.length} объектов`;
+        if (itemsCounter) itemsCounter.textContent = `${sorted.length} объектов`;
 
-        // Calculate total size for category
         let sumBytes = sorted.reduce((acc, f) => acc + (f.file_size || 0), 0);
-        storageTotalSize.textContent = formatBytes(sumBytes);
+        if (storageTotalSize) storageTotalSize.textContent = formatBytes(sumBytes);
 
         if (sorted.length === 0) {
-            filesGrid.innerHTML = '';
-            filesTableBody.innerHTML = '';
-            emptyState.classList.remove('hidden');
+            if (filesGrid) filesGrid.innerHTML = '';
+            if (filesTableBody) filesTableBody.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('hidden');
 
-            if (currentCategory === 'trash') {
-                emptyIcon.textContent = 'delete_outline';
-                emptyTitle.textContent = 'Корзина пуста';
-                emptyDesc.textContent = 'Удаленные файлы попадают сюда перед полным удалением';
-            } else if (currentSearch) {
-                emptyIcon.textContent = 'search_off';
-                emptyTitle.textContent = 'Ничего не найдено';
-                emptyDesc.textContent = `По запросу «${escapeHtml(currentSearch)}» ничего не нашлось`;
-            } else {
-                emptyIcon.textContent = 'folder_open';
-                emptyTitle.textContent = 'Папка пуста';
-                emptyDesc.textContent = 'Загрузите файлы кнопкой выше или перетащите их сюда';
+            if (emptyTitle && emptyDesc && emptyIcon) {
+                if (currentCategory === 'trash') {
+                    emptyIcon.textContent = 'delete_outline';
+                    emptyTitle.textContent = 'Корзина пуста';
+                    emptyDesc.textContent = 'Удаленные файлы попадают сюда перед полным удалением';
+                } else if (currentSearch) {
+                    emptyIcon.textContent = 'search_off';
+                    emptyTitle.textContent = 'Ничего не найдено';
+                    emptyDesc.textContent = `По запросу «${escapeHtml(currentSearch)}» ничего не нашлось`;
+                } else {
+                    emptyIcon.textContent = 'folder_open';
+                    emptyTitle.textContent = 'Папка пуста';
+                    emptyDesc.textContent = 'Нажмите «Загрузить» или перетащите файлы в окно';
+                }
             }
             return;
         }
 
-        emptyState.classList.add('hidden');
+        if (emptyState) emptyState.classList.add('hidden');
 
         // Render Grid
-        filesGrid.innerHTML = '';
-        sorted.forEach(file => {
-            const card = document.createElement('div');
-            card.className = 'file-card';
-            const iconName = getFileMaterialIcon(file.filename, file.category);
-            const sizeStr = formatBytes(file.file_size);
-            const dateStr = formatDate(file.created_at);
+        if (filesGrid) {
+            filesGrid.innerHTML = '';
+            sorted.forEach(file => {
+                const card = document.createElement('div');
+                card.className = 'file-card';
+                const iconName = getFileMaterialIcon(file.filename, file.category);
+                const sizeStr = formatBytes(file.file_size);
+                const dateStr = formatDate(file.created_at);
 
-            let previewHtml = `<span class="material-symbols-rounded file-card-icon">${iconName}</span>`;
-            if (file.category === 'images') {
-                previewHtml = `<img src="/api/download/${file.id}" alt="${escapeHtml(file.filename)}" loading="lazy">`;
-            }
+                let previewHtml = `<span class="material-symbols-rounded">${iconName}</span>`;
+                if (file.category === 'images') {
+                    previewHtml = `<img src="/api/download/${file.id}" alt="${escapeHtml(file.filename)}" loading="lazy">`;
+                }
 
-            card.innerHTML = `
-                <div class="file-card-preview" onclick="openPreview(${file.id})">
-                    ${previewHtml}
-                </div>
-                <div class="file-card-body" onclick="openPreview(${file.id})">
-                    <span class="file-card-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</span>
-                    <div class="file-card-meta">
-                        <span>${sizeStr}</span>
-                        <span>${dateStr}</span>
+                card.innerHTML = `
+                    <div class="file-card-thumb" onclick="openPreview(${file.id})">
+                        ${previewHtml}
                     </div>
-                </div>
-                <div class="file-card-actions">
-                    ${getActionButtonsHtml(file)}
-                </div>
-            `;
-            filesGrid.appendChild(card);
-        });
-
-        // Render List / Table
-        filesTableBody.innerHTML = '';
-        sorted.forEach(file => {
-            const tr = document.createElement('tr');
-            const iconName = getFileMaterialIcon(file.filename, file.category);
-            const sizeStr = formatBytes(file.file_size);
-            const dateStr = formatDate(file.created_at);
-
-            tr.innerHTML = `
-                <td onclick="openPreview(${file.id})">
-                    <div class="table-file-cell">
-                        <span class="material-symbols-rounded table-file-icon">${iconName}</span>
-                        <span title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</span>
+                    <div class="file-card-info" onclick="openPreview(${file.id})">
+                        <span class="file-card-title" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</span>
+                        <div class="file-card-meta">
+                            <span>${sizeStr}</span>
+                            <span>${dateStr}</span>
+                        </div>
                     </div>
-                </td>
-                <td onclick="openPreview(${file.id})">${sizeStr}</td>
-                <td onclick="openPreview(${file.id})">${dateStr}</td>
-                <td class="col-actions">
-                    <div class="table-actions">
+                    <div class="file-card-foot">
                         ${getActionButtonsHtml(file)}
                     </div>
-                </td>
-            `;
-            filesTableBody.appendChild(tr);
-        });
+                `;
+                filesGrid.appendChild(card);
+            });
+        }
+
+        // Render List / Table
+        if (filesTableBody) {
+            filesTableBody.innerHTML = '';
+            sorted.forEach(file => {
+                const tr = document.createElement('tr');
+                const iconName = getFileMaterialIcon(file.filename, file.category);
+                const sizeStr = formatBytes(file.file_size);
+                const dateStr = formatDate(file.created_at);
+
+                tr.innerHTML = `
+                    <td onclick="openPreview(${file.id})">
+                        <div class="table-name-cell">
+                            <span class="material-symbols-rounded">${iconName}</span>
+                            <span title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</span>
+                        </div>
+                    </td>
+                    <td onclick="openPreview(${file.id})">${sizeStr}</td>
+                    <td onclick="openPreview(${file.id})">${dateStr}</td>
+                    <td class="table-actions-cell">
+                        ${getActionButtonsHtml(file)}
+                    </td>
+                `;
+                filesTableBody.appendChild(tr);
+            });
+        }
     }
 
     function getActionButtonsHtml(file) {
@@ -337,26 +357,25 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Universal Preview Modal Logic
+    // Universal Preview Modal
     window.openPreview = async (fileId) => {
         const file = filesData.find(f => f.id === fileId);
-        if (!file) return;
+        if (!file || !previewModal) return;
 
-        activePreviewFile = file;
-        modalFilename.textContent = file.filename;
-        modalFileIcon.textContent = getFileMaterialIcon(file.filename, file.category);
-        modalFileSize.textContent = formatBytes(file.file_size);
-        modalFileDate.textContent = formatDate(file.created_at);
-        modalFileId.textContent = `ID: ${file.id}`;
+        if (modalFilename) modalFilename.textContent = file.filename;
+        if (modalFileIcon) modalFileIcon.textContent = getFileMaterialIcon(file.filename, file.category);
+        if (modalFileSize) modalFileSize.textContent = formatBytes(file.file_size);
+        if (modalFileDate) modalFileDate.textContent = formatDate(file.created_at);
+        if (modalFileId) modalFileId.textContent = `ID: ${file.id}`;
 
         const downloadUrl = `/api/download/${file.id}`;
-        modalDownloadBtn.onclick = () => window.location.href = downloadUrl;
+        if (modalDownloadBtn) modalDownloadBtn.onclick = () => window.location.href = downloadUrl;
 
-        modalBody.innerHTML = '<div class="ayu-spinner"></div>';
+        if (modalBody) modalBody.innerHTML = '<div class="spinner"></div>';
         previewModal.classList.remove('hidden');
 
         const cat = file.category;
-        const ext = file.filename.split('.').pop().toLowerCase();
+        const ext = (file.filename || '').split('.').pop().toLowerCase();
 
         // 1. Image Preview
         if (cat === 'images') {
@@ -367,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalBody.innerHTML = `
                 <video controls autoplay playsinline>
                     <source src="${downloadUrl}" type="${file.mime_type || 'video/mp4'}">
-                    Ваш браузер не поддерживает воспроизведение этого видео.
+                    Ваш браузер не поддерживает видео.
                 </video>
             `;
         }
@@ -383,8 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Archive (ZIP) Preview with JSZip
         else if (ext === 'zip' && window.JSZip) {
             modalBody.innerHTML = `
-                <div class="state-container">
-                    <div class="ayu-spinner"></div>
+                <div class="state-wrap">
+                    <div class="spinner"></div>
                     <p>Чтение структуры архива...</p>
                 </div>
             `;
@@ -405,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fileRows += `
                         <tr>
                             <td>
-                                <div class="archive-filename-cell">
+                                <div class="zip-item-name">
                                     <span class="material-symbols-rounded">${icon}</span>
                                     <span>${escapeHtml(relativePath)}</span>
                                 </div>
@@ -416,12 +435,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 modalBody.innerHTML = `
-                    <div class="archive-tree">
-                        <table class="archive-table">
+                    <div class="zip-container">
+                        <table class="zip-table">
                             <thead>
                                 <tr>
                                     <th>Имя файла (${totalZipFiles} элементов)</th>
-                                    <th style="width: 110px;">Размер</th>
+                                    <th style="width: 100px;">Размер</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -432,10 +451,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } catch (err) {
                 modalBody.innerHTML = `
-                    <div class="state-container">
-                        <span class="material-symbols-rounded empty-icon">folder_zip</span>
-                        <h3>Не удалось открыть архив</h3>
-                        <p>${escapeHtml(err.message)}</p>
+                    <div class="state-wrap">
+                        <span class="material-symbols-rounded state-icon">folder_zip</span>
+                        <div class="state-title">Не удалось открыть архив</div>
+                        <div class="state-desc">${escapeHtml(err.message)}</div>
                     </div>
                 `;
             }
@@ -443,11 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 5. Default Fallback
         else {
             modalBody.innerHTML = `
-                <div class="state-container">
-                    <span class="material-symbols-rounded empty-icon">${getFileMaterialIcon(file.filename, file.category)}</span>
-                    <h3>${escapeHtml(file.filename)}</h3>
-                    <p>Предпросмотр недоступен для этого типа файлов (${ext.toUpperCase()})</p>
-                    <button class="btn btn-primary" style="margin-top: 16px; width: auto;" onclick="window.location.href='${downloadUrl}'">
+                <div class="state-wrap">
+                    <span class="material-symbols-rounded state-icon">${getFileMaterialIcon(file.filename, file.category)}</span>
+                    <div class="state-title">${escapeHtml(file.filename)}</div>
+                    <div class="state-desc">Предпросмотр недоступен для этого типа файлов (${ext.toUpperCase()})</div>
+                    <button class="btn-upload" style="margin-top: 14px; width: auto; padding: 8px 16px;" onclick="window.location.href='${downloadUrl}'">
                         <span class="material-symbols-rounded">download</span>
                         <span>Скачать файл</span>
                     </button>
@@ -456,21 +475,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    modalCloseBtn.addEventListener('click', closeModal);
-    previewModal.addEventListener('click', (e) => {
-        if (e.target === previewModal) closeModal();
-    });
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+    if (previewModal) {
+        previewModal.addEventListener('click', (e) => {
+            if (e.target === previewModal) closeModal();
+        });
+    }
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !previewModal.classList.contains('hidden')) {
+        if (e.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
             closeModal();
         }
     });
 
     function closeModal() {
-        previewModal.classList.add('hidden');
-        modalBody.innerHTML = '';
-        activePreviewFile = null;
+        if (previewModal) {
+            previewModal.classList.add('hidden');
+            if (modalBody) modalBody.innerHTML = '';
+        }
     }
 
     // Actions
@@ -505,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.permanentDeleteFile = async (fileId, e) => {
         if (e) e.stopPropagation();
-        if (!confirm('Удалить этот файл навсегда из Telegram? Это действие нельзя отменить.')) return;
+        if (!confirm('Удалить этот файл навсегда из Telegram?')) return;
         try {
             const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Не удалось удалить файл');
@@ -516,33 +538,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    emptyTrashBtn.addEventListener('click', async () => {
-        if (!confirm('Очистить всю корзину? Все файлы в ней будут удалены из Telegram навсегда.')) return;
-        try {
-            const res = await fetch('/api/trash/empty', { method: 'POST' });
-            if (!res.ok) throw new Error('Не удалось очистить корзину');
-            showToast('Корзина успешно очищена', 'success');
-            loadFiles();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
-    });
+    if (emptyTrashBtn) {
+        emptyTrashBtn.addEventListener('click', async () => {
+            if (!confirm('Очистить всю корзину? Все файлы в ней будут удалены из Telegram навсегда.')) return;
+            try {
+                const res = await fetch('/api/trash/empty', { method: 'POST' });
+                if (!res.ok) throw new Error('Не удалось очистить корзину');
+                showToast('Корзина очищена', 'success');
+                loadFiles();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
+    }
 
     // Upload Handler
-    uploadBtn.addEventListener('click', () => fileInput.click());
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', () => fileInput.click());
 
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            uploadFiles(e.target.files);
-        }
-    });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFiles(e.target.files);
+            }
+        });
+    }
 
     async function uploadFiles(fileList) {
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
             await uploadSingleFile(file);
         }
-        fileInput.value = '';
+        if (fileInput) fileInput.value = '';
         loadFiles();
     }
 
@@ -554,20 +580,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '/api/upload', true);
 
-            uploadBanner.classList.remove('hidden');
-            uploadFilename.textContent = file.name;
-            uploadStatus.textContent = 'Отправка на сервер...';
-            progressIndicator.style.width = '0%';
-            uploadPercent.textContent = '0%';
+            if (uploadBanner) uploadBanner.classList.remove('hidden');
+            if (uploadFilename) uploadFilename.textContent = file.name;
+            if (progressIndicator) progressIndicator.style.width = '0%';
+            if (uploadPercent) uploadPercent.textContent = '0%';
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
-                    progressIndicator.style.width = percent + '%';
-                    uploadPercent.textContent = percent + '%';
-                    if (percent === 100) {
-                        uploadStatus.textContent = 'Сохранение в Telegram-хранилище...';
-                    }
+                    if (progressIndicator) progressIndicator.style.width = percent + '%';
+                    if (uploadPercent) uploadPercent.textContent = percent + '%';
                 }
             };
 
@@ -584,12 +606,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(errMsg, 'error');
                     reject();
                 }
-                setTimeout(() => uploadBanner.classList.add('hidden'), 1500);
+                if (uploadBanner) {
+                    setTimeout(() => uploadBanner.classList.add('hidden'), 1500);
+                }
             };
 
             xhr.onerror = () => {
                 showToast(`Сетевая ошибка при загрузке «${file.name}»`, 'error');
-                uploadBanner.classList.add('hidden');
+                if (uploadBanner) uploadBanner.classList.add('hidden');
                 reject();
             };
 
@@ -605,23 +629,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.body.addEventListener('dragenter', () => dropOverlay.classList.remove('hidden'));
-    dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.add('hidden'));
+    if (dropOverlay) {
+        document.body.addEventListener('dragenter', () => dropOverlay.classList.remove('hidden'));
+        dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.add('hidden'));
 
-    dropOverlay.addEventListener('drop', (e) => {
-        dropOverlay.classList.add('hidden');
-        if (e.dataTransfer.files.length > 0) {
-            uploadFiles(e.dataTransfer.files);
-        }
-    });
+        dropOverlay.addEventListener('drop', (e) => {
+            dropOverlay.classList.add('hidden');
+            if (e.dataTransfer.files.length > 0) {
+                uploadFiles(e.dataTransfer.files);
+            }
+        });
+    }
 
-    // Helper functions
+    // Helpers
     function showLoading(show) {
-        loadingState.classList.toggle('hidden', !show);
+        if (loadingState) loadingState.classList.toggle('hidden', !show);
         if (show) {
-            emptyState.classList.add('hidden');
-            filesGrid.classList.add('hidden');
-            filesTableWrapper.classList.add('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (filesGrid) filesGrid.classList.add('hidden');
+            if (filesTableWrapper) filesTableWrapper.classList.add('hidden');
         } else {
             setView(currentView);
         }
@@ -649,7 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (category === 'documents') return 'description';
         if (category === 'audio') return 'audio_file';
         
-        const ext = filename.split('.').pop().toLowerCase();
+        const ext = (filename || '').split('.').pop().toLowerCase();
         if (['code', 'js', 'py', 'html', 'css', 'ts', 'json', 'sh'].includes(ext)) return 'code';
         if (['pdf'].includes(ext)) return 'picture_as_pdf';
         return 'draft';
@@ -664,9 +690,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let toastTimeout;
     function showToast(message, type = 'info') {
+        if (!toast || !toastMessage || !toastIcon) return;
         clearTimeout(toastTimeout);
         toastMessage.textContent = message;
-        toast.className = `toast-card ${type}`;
+        toast.className = `toast ${type}`;
         
         if (type === 'success') toastIcon.textContent = 'check_circle';
         else if (type === 'error') toastIcon.textContent = 'error';

@@ -8,21 +8,22 @@ from fastapi.staticfiles import StaticFiles
 from config import UPLOAD_DIR
 from database import (
     init_db,
-    get_trashed_ids,
+    add_or_update_file,
+    get_db_files,
     move_to_trash,
     restore_from_trash,
-    remove_from_trash_table,
-    get_all_trash_ids,
-    empty_trash_db
+    delete_file_record,
+    get_trashed_ids_list,
+    empty_trash_records
 )
 from tg_client import (
     tg_app,
     start_tg_client,
     stop_tg_client,
     upload_to_channel,
-    get_channel_files,
     stream_file_from_channel,
     delete_from_channel,
+    get_file_category,
     STORAGE_CHAT_ID
 )
 
@@ -56,23 +57,7 @@ async def health_check():
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None), category: str = Query("all")):
-    all_files = await get_channel_files(search_query=search)
-    trashed_ids = await get_trashed_ids()
-
-    if category == "trash":
-        result = [f for f in all_files if f["id"] in trashed_ids]
-    else:
-        active_files = [f for f in all_files if f["id"] not in trashed_ids]
-        if category and category != "all":
-            result = [f for f in active_files if f.get("category") == category]
-        else:
-            result = active_files
-
-    return {
-        "files": result,
-        "total_active": len([f for f in all_files if f["id"] not in trashed_ids]),
-        "total_trash": len([f for f in all_files if f["id"] in trashed_ids])
-    }
+    return await get_db_files(search_query=search, category=category)
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -87,6 +72,15 @@ async def upload_file(file: UploadFile = File(...)):
 
         file_size = os.path.getsize(temp_path)
         message_id = await upload_to_channel(temp_path, safe_filename)
+        category = get_file_category(safe_filename, file.content_type)
+
+        await add_or_update_file(
+            message_id=message_id,
+            filename=safe_filename,
+            file_size=file_size,
+            mime_type=file.content_type,
+            category=category
+        )
 
         return {
             "id": message_id,
@@ -144,17 +138,17 @@ async def restore_file(message_id: int):
 
 @app.post("/api/trash/empty")
 async def empty_trash():
-    trash_ids = await get_all_trash_ids()
+    trash_ids = await get_trashed_ids_list()
     for mid in trash_ids:
         try:
             await delete_from_channel(mid)
         except Exception:
             pass
-    await empty_trash_db()
+    await empty_trash_records()
     return {"status": "success", "message": "Trash emptied"}
 
 @app.delete("/api/files/{message_id}")
 async def delete_file_permanently(message_id: int):
     await delete_from_channel(message_id)
-    await remove_from_trash_table(message_id)
+    await delete_file_record(message_id)
     return {"status": "success", "message": "File permanently deleted"}
