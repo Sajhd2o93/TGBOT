@@ -117,24 +117,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
             progressContainer.classList.remove('hidden');
             progressStatusText.textContent = `Загрузка: ${file.name}`;
+            progressBarFill.style.width = '0%';
+            progressPercent.textContent = '0%';
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
                     progressBarFill.style.width = percent + '%';
                     progressPercent.textContent = percent + '%';
+                    if (percent === 100) {
+                        progressStatusText.textContent = `Сохранение в Telegram: ${file.name}...`;
+                    }
                 }
             };
 
             xhr.onload = () => {
                 if (xhr.status === 200) {
-                    showToast(`Файл "${file.name}" загружен!`, 'success');
+                    showToast(`Файл "${file.name}" успешно загружен!`, 'success');
                     resolve();
                 } else {
-                    showToast(`Ошибка загрузки "${file.name}"`, 'error');
+                    let errMsg = `Ошибка загрузки "${file.name}"`;
+                    try {
+                        const res = JSON.parse(xhr.responseText);
+                        if (res.detail) errMsg = res.detail;
+                    } catch(e) {}
+                    showToast(errMsg, 'error');
                     reject();
                 }
-                setTimeout(() => progressContainer.classList.add('hidden'), 1000);
+                setTimeout(() => progressContainer.classList.add('hidden'), 2000);
             };
 
             xhr.onerror = () => {
@@ -239,8 +249,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function showToast(message, type = 'info') {
         const toast = document.getElementById('toast');
         toast.textContent = message;
+        toast.className = `toast ${type}`;
         toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
+        setTimeout(() => toast.classList.add('hidden'), 4000);
     }
 
     // Initial load
