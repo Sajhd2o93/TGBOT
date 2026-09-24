@@ -1,9 +1,25 @@
 import os
+import asyncio
 import uvicorn
 from main import app
 
-if __name__ == "__main__":
-    # Log environment variables (without secret values)
+async def run_port(port: int):
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=port,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+        log_level="info"
+    )
+    server = uvicorn.Server(config)
+    try:
+        print(f"🚀 Listener active on 0.0.0.0:{port}")
+        await server.serve()
+    except Exception as e:
+        print(f"⚠️ Port {port} binding skipped: {e}")
+
+async def main():
     print("--- ENVIRONMENT KEYS DETECTED ---")
     for key in sorted(os.environ.keys()):
         if any(secret in key.lower() for secret in ["token", "hash", "secret", "password", "key"]):
@@ -12,20 +28,25 @@ if __name__ == "__main__":
             print(f"  {key} = {os.environ[key]}")
     print("--------------------------------")
 
-    # Infrlo Python default port (8000)
-    port_env = os.getenv("PORT")
-    if port_env:
-        port = int(port_env)
-        print(f"🌐 Using system PORT environment variable: {port}")
-    else:
-        port = int(os.getenv("CONTAINER_PORT", "8000"))
-        print(f"🌐 PORT environment variable not found, using Python standard port: {port}")
+    ports_to_try = [8000, 8080, 5000, 3000, 80]
+    
+    env_port = os.getenv("PORT")
+    if env_port:
+        try:
+            p = int(env_port)
+            if p not in ports_to_try:
+                ports_to_try.insert(0, p)
+        except ValueError:
+            pass
 
-    print(f"🚀 Starting Uvicorn server on 0.0.0.0:{port}...")
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        proxy_headers=True,
-        forwarded_allow_ips="*"
-    )
+    print(f"🌐 Multi-port listener starting on ports: {ports_to_try}")
+    
+    # Run servers on all candidate ports concurrently
+    servers = [run_port(p) for p in ports_to_try]
+    await asyncio.gather(*servers)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
