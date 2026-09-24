@@ -181,6 +181,20 @@ async def stream_file_from_channel(message_id: int):
     async for chunk in tg_app.stream_media(msg):
         yield chunk
 
+async def download_file_to_temp(message_id: int, destination_path: str):
+    """Downloads a media file from Telegram to a local temporary path."""
+    global tg_app, STORAGE_CHAT_ID
+    if not tg_app or not tg_app.is_connected:
+        raise ValueError("Telegram Bot is not connected.")
+    target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
+    msg = await tg_app.get_messages(target_chat, message_id)
+    if not msg:
+        raise ValueError("File not found in Telegram.")
+    
+    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+    res = await tg_app.download_media(msg, file_name=destination_path)
+    return res
+
 async def delete_from_channel(message_id: int):
     """Deletes the file message from Telegram channel."""
     global tg_app, STORAGE_CHAT_ID
