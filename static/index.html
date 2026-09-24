@@ -1,108 +1,264 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="ayu-dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TG Cloud Drive</title>
-    <!-- FontAwesome icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
+    <title>TG Drive</title>
+    <!-- Google Fonts: Inter & Material Symbols Rounded -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <!-- JSZip for in-browser archive inspection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="dark-mode">
+<body>
 
-    <!-- App Container -->
-    <div class="app-container">
-        <!-- Header -->
-        <header class="navbar">
-            <div class="logo">
-                <i class="fa-solid fa-cloud-bolt logo-icon"></i>
-                <span class="logo-text">TG Drive</span>
-            </div>
-            
-            <div class="search-bar">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" placeholder="Поиск файлов на диске...">
+    <!-- Main Layout Grid -->
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <span class="material-symbols-rounded brand-icon">cloud_queue</span>
+                    <span class="brand-name">TG Drive</span>
+                </div>
+                <button class="icon-btn mobile-close" id="sidebarCloseBtn" aria-label="Закрыть меню">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
             </div>
 
-            <div class="nav-actions">
-                <button id="uploadBtn" class="btn btn-primary">
-                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                    <span class="btn-text">Загрузить</span>
+            <!-- Upload Primary Action Button -->
+            <div class="sidebar-action">
+                <button class="btn btn-primary" id="uploadBtn">
+                    <span class="material-symbols-rounded">upload</span>
+                    <span>Загрузить</span>
                 </button>
                 <input type="file" id="fileInput" multiple style="display: none;">
             </div>
-        </header>
 
-        <!-- Main Content Area -->
-        <main class="main-content">
-            <!-- Drop Zone Overlay -->
-            <div id="dropZone" class="drop-zone hidden">
-                <div class="drop-zone-content">
-                    <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
-                    <p>Перетащите файлы сюда для загрузки</p>
+            <!-- Navigation Categories -->
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">Категории</div>
+                <button class="nav-item active" data-category="all">
+                    <span class="material-symbols-rounded">folder_open</span>
+                    <span class="nav-label">Все файлы</span>
+                    <span class="nav-count" id="countAll">0</span>
+                </button>
+                <button class="nav-item" data-category="images">
+                    <span class="material-symbols-rounded">image</span>
+                    <span class="nav-label">Изображения</span>
+                </button>
+                <button class="nav-item" data-category="videos">
+                    <span class="material-symbols-rounded">movie</span>
+                    <span class="nav-label">Видео</span>
+                </button>
+                <button class="nav-item" data-category="archives">
+                    <span class="material-symbols-rounded">folder_zip</span>
+                    <span class="nav-label">Архивы</span>
+                </button>
+                <button class="nav-item" data-category="documents">
+                    <span class="material-symbols-rounded">description</span>
+                    <span class="nav-label">Документы</span>
+                </button>
+
+                <div class="nav-divider"></div>
+
+                <button class="nav-item nav-trash" data-category="trash">
+                    <span class="material-symbols-rounded">delete</span>
+                    <span class="nav-label">Корзина</span>
+                    <span class="nav-count badge-trash" id="countTrash">0</span>
+                </button>
+            </nav>
+
+            <!-- Storage Info Footer -->
+            <div class="sidebar-footer">
+                <div class="storage-card">
+                    <div class="storage-header">
+                        <span class="material-symbols-rounded storage-icon">database</span>
+                        <span class="storage-title">Хранилище Telegram</span>
+                    </div>
+                    <div class="storage-meta">
+                        <span id="storageTotalFiles">0 файлов</span>
+                        <span id="storageTotalSize">0 Б</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Panel -->
+        <div class="main-panel">
+            <!-- Header Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="icon-btn mobile-menu-btn" id="sidebarOpenBtn" aria-label="Открыть меню">
+                        <span class="material-symbols-rounded">menu</span>
+                    </button>
+                    <div class="search-box">
+                        <span class="material-symbols-rounded search-icon">search</span>
+                        <input type="text" id="searchInput" placeholder="Поиск файлов по названию..." autocomplete="off">
+                        <button class="icon-btn clear-search-btn hidden" id="clearSearchBtn" aria-label="Очистить поиск">
+                            <span class="material-symbols-rounded">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <!-- Theme Toggle Switch -->
+                    <button class="icon-btn" id="themeToggleBtn" title="Сменить тему">
+                        <span class="material-symbols-rounded" id="themeIcon">light_mode</span>
+                    </button>
+                    <!-- Refresh Button -->
+                    <button class="icon-btn" id="refreshBtn" title="Обновить список">
+                        <span class="material-symbols-rounded">refresh</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dynamic Section Toolbar -->
+            <div class="section-toolbar">
+                <div class="section-heading">
+                    <h1 id="currentCategoryTitle">Все файлы</h1>
+                    <span class="items-counter" id="itemsCounter">0 объектов</span>
+                </div>
+
+                <div class="toolbar-controls">
+                    <!-- Trash-specific controls -->
+                    <div class="trash-controls hidden" id="trashControls">
+                        <button class="btn btn-danger-outline" id="emptyTrashBtn">
+                            <span class="material-symbols-rounded">delete_forever</span>
+                            <span>Очистить корзину</span>
+                        </button>
+                    </div>
+
+                    <!-- Sort Controls -->
+                    <div class="sort-dropdown-wrapper">
+                        <button class="icon-btn sort-btn" id="sortBtn" title="Сортировка">
+                            <span class="material-symbols-rounded">sort</span>
+                            <span class="sort-label" id="sortLabel">Сначала новые</span>
+                        </button>
+                        <div class="sort-menu hidden" id="sortMenu">
+                            <button class="sort-option active" data-sort="date-desc">Сначала новые</button>
+                            <button class="sort-option" data-sort="date-asc">Сначала старые</button>
+                            <button class="sort-option" data-sort="name-asc">По имени (А-Я)</button>
+                            <button class="sort-option" data-sort="name-desc">По имени (Я-А)</button>
+                            <button class="sort-option" data-sort="size-desc">По размеру (убывание)</button>
+                            <button class="sort-option" data-sort="size-asc">По размеру (возрастание)</button>
+                        </div>
+                    </div>
+
+                    <!-- View Switcher (Grid / List) -->
+                    <div class="view-switcher">
+                        <button class="icon-btn view-btn active" id="viewGridBtn" title="Сетка">
+                            <span class="material-symbols-rounded">grid_view</span>
+                        </button>
+                        <button class="icon-btn view-btn" id="viewListBtn" title="Список">
+                            <span class="material-symbols-rounded">view_list</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Upload Progress Container -->
-            <div id="uploadProgressContainer" class="upload-progress-container hidden">
-                <div class="upload-progress-header">
-                    <span id="uploadStatusText">Загрузка файлов...</span>
-                    <span id="uploadPercent">0%</span>
+            <!-- Upload Progress Bar -->
+            <div class="upload-banner hidden" id="uploadBanner">
+                <div class="upload-banner-info">
+                    <span class="material-symbols-rounded upload-anim-icon">cloud_upload</span>
+                    <div class="upload-text-group">
+                        <span class="upload-filename" id="uploadFilename">file.zip</span>
+                        <span class="upload-status" id="uploadStatus">Загрузка...</span>
+                    </div>
+                    <span class="upload-percent" id="uploadPercent">0%</span>
                 </div>
-                <div class="progress-bar-bg">
-                    <div id="progressBarFill" class="progress-bar-fill"></div>
-                </div>
-            </div>
-
-            <!-- Toolbar & Controls -->
-            <div class="content-header">
-                <div class="stats-info">
-                    <span id="filesCount">0 файлов</span>
-                    <span class="dot-separator">•</span>
-                    <span id="totalSize">0 MB</span>
-                </div>
-                <div class="view-options">
-                    <button id="refreshBtn" class="icon-btn" title="Обновить"><i class="fa-solid fa-rotate-right"></i></button>
+                <div class="progress-track">
+                    <div class="progress-indicator" id="progressIndicator"></div>
                 </div>
             </div>
 
-            <!-- Files List Section -->
-            <div class="files-wrapper">
-                <div id="loadingSpinner" class="spinner-container">
-                    <i class="fa-solid fa-circle-notch fa-spin spinner"></i>
+            <!-- Content Area -->
+            <main class="content-scroll" id="contentArea">
+                <!-- Drop Zone Overlay -->
+                <div class="drop-overlay hidden" id="dropOverlay">
+                    <div class="drop-box">
+                        <span class="material-symbols-rounded drop-icon">upload_file</span>
+                        <h3>Перетащите файлы для загрузки</h3>
+                        <p>Файлы будут сохранены в вашем защищенном Telegram-хранилище</p>
+                    </div>
                 </div>
 
-                <div id="emptyState" class="empty-state hidden">
-                    <i class="fa-solid fa-folder-open empty-icon"></i>
-                    <h3>Файлов пока нет</h3>
-                    <p>Нажмите «Загрузить» или перетащите файлы в окно</p>
+                <!-- Loading State -->
+                <div class="state-container" id="loadingState">
+                    <div class="ayu-spinner"></div>
+                    <p>Загрузка файлов из Telegram...</p>
                 </div>
 
-                <table id="filesTable" class="files-table hidden">
-                    <thead>
-                        <tr>
-                            <th>Имя</th>
-                            <th>Размер</th>
-                            <th>Дата добавления</th>
-                            <th class="actions-col">Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="filesList">
-                        <!-- File rows rendered dynamically -->
-                    </tbody>
-                </table>
+                <!-- Empty State -->
+                <div class="state-container hidden" id="emptyState">
+                    <span class="material-symbols-rounded empty-icon" id="emptyIcon">folder_open</span>
+                    <h3 id="emptyTitle">Файлов нет</h3>
+                    <p id="emptyDesc">Нажмите кнопку «Загрузить» или перетащите файлы в окно браузера</p>
+                </div>
+
+                <!-- Files Grid Container -->
+                <div class="files-grid" id="filesGrid"></div>
+
+                <!-- Files List / Table Container -->
+                <div class="files-table-wrapper hidden" id="filesTableWrapper">
+                    <table class="files-table">
+                        <thead>
+                            <tr>
+                                <th class="col-name">Имя</th>
+                                <th class="col-size">Размер</th>
+                                <th class="col-date">Дата</th>
+                                <th class="col-actions">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filesTableBody"></tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Universal Preview Modal -->
+    <div class="modal-backdrop hidden" id="previewModal">
+        <div class="modal-window">
+            <div class="modal-header">
+                <div class="modal-file-info">
+                    <span class="material-symbols-rounded modal-file-icon" id="modalFileIcon">draft</span>
+                    <span class="modal-filename" id="modalFilename">filename.ext</span>
+                </div>
+                <div class="modal-header-actions">
+                    <button class="icon-btn" id="modalDownloadBtn" title="Скачать файл">
+                        <span class="material-symbols-rounded">download</span>
+                    </button>
+                    <button class="icon-btn" id="modalCloseBtn" title="Закрыть">
+                        <span class="material-symbols-rounded">close</span>
+                    </button>
+                </div>
             </div>
-        </main>
+
+            <div class="modal-body" id="modalBody">
+                <!-- Dynamic content injected here: <img>, <video>, <audio>, archive inspector, or fallback -->
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-meta-chips">
+                    <span class="meta-chip" id="modalFileSize">0 MB</span>
+                    <span class="meta-chip" id="modalFileDate">-</span>
+                    <span class="meta-chip" id="modalFileId">ID: 0</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Notification Toast -->
-    <div id="toast" class="toast hidden"></div>
+    <div class="toast-card hidden" id="toast">
+        <span class="material-symbols-rounded toast-icon" id="toastIcon">info</span>
+        <span class="toast-message" id="toastMessage">Сообщение</span>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

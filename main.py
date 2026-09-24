@@ -6,6 +6,15 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import UPLOAD_DIR
+from database import (
+    init_db,
+    get_trashed_ids,
+    move_to_trash,
+    restore_from_trash,
+    remove_from_trash_table,
+    get_all_trash_ids,
+    empty_trash_db
+)
 from tg_client import (
     tg_app,
     start_tg_client,
@@ -19,13 +28,15 @@ from tg_client import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 Initializing Database...")
+    await init_db()
     print("⚡ Starting Telegram MTProto client...")
     await start_tg_client()
     yield
     print("🛑 Stopping Telegram client...")
     await stop_tg_client()
 
-app = FastAPI(title="Telegram Cloud Drive", lifespan=lifespan)
+app = FastAPI(title="TG Drive", lifespan=lifespan)
 
 # Mount static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -40,9 +51,24 @@ async def health_check():
     return {"status": "ok"}
 
 @app.get("/api/files")
-async def list_files(search: str = Query(None)):
-    files = await get_channel_files(search_query=search)
-    return files
+async def list_files(search: str = Query(None), category: str = Query("all")):
+    all_files = await get_channel_files(search_query=search)
+    trashed_ids = await get_trashed_ids()
+
+    if category == "trash":
+        result = [f for f in all_files if f["id"] in trashed_ids]
+    else:
+        active_files = [f for f in all_files if f["id"] not in trashed_ids]
+        if category and category != "all":
+            result = [f for f in active_files if f.get("category") == category]
+        else:
+            result = active_files
+
+    return {
+        "files": result,
+        "total_active": len([f for f in all_files if f["id"] not in trashed_ids]),
+        "total_trash": len([f for f in all_files if f["id"] in trashed_ids])
+    }
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -56,7 +82,6 @@ async def upload_file(file: UploadFile = File(...)):
             await out_file.flush()
 
         file_size = os.path.getsize(temp_path)
-
         message_id = await upload_to_channel(temp_path, safe_filename)
 
         return {
@@ -85,7 +110,7 @@ async def download_file(message_id: int):
         if not msg:
             raise HTTPException(status_code=404, detail="File not found")
 
-        media = msg.document or msg.video or msg.audio
+        media = msg.document or msg.video or msg.audio or msg.photo
         filename = getattr(media, "file_name", f"file_{message_id}")
         file_size = getattr(media, "file_size", 0)
         mime_type = getattr(media, "mime_type", "application/octet-stream")
@@ -103,7 +128,29 @@ async def download_file(message_id: int):
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Cannot download file: {e}")
 
+@app.post("/api/trash/{message_id}")
+async def trash_file(message_id: int):
+    await move_to_trash(message_id)
+    return {"status": "success", "message": "Moved to trash"}
+
+@app.post("/api/trash/restore/{message_id}")
+async def restore_file(message_id: int):
+    await restore_from_trash(message_id)
+    return {"status": "success", "message": "Restored from trash"}
+
+@app.post("/api/trash/empty")
+async def empty_trash():
+    trash_ids = await get_all_trash_ids()
+    for mid in trash_ids:
+        try:
+            await delete_from_channel(mid)
+        except Exception:
+            pass
+    await empty_trash_db()
+    return {"status": "success", "message": "Trash emptied"}
+
 @app.delete("/api/files/{message_id}")
-async def delete_file(message_id: int):
+async def delete_file_permanently(message_id: int):
     await delete_from_channel(message_id)
-    return {"status": "success", "message": "File deleted"}
+    await remove_from_trash_table(message_id)
+    return {"status": "success", "message": "File permanently deleted"}

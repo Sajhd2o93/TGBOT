@@ -1,5 +1,7 @@
 import os
 import asyncio
+import zipfile
+import io
 from pyrogram import Client
 from pyrogram.errors import FloodWait
 from config import BOT_TOKEN, API_ID, API_HASH, CHANNEL_ID
@@ -8,6 +10,20 @@ from bot import register_bot_handlers
 tg_app = None
 STORAGE_CHAT_ID = None
 max_known_id = 100
+
+def get_file_category(filename: str, mime_type: str = "") -> str:
+    ext = os.path.splitext(filename)[1].lower().lstrip(".")
+    if ext in ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"]:
+        return "images"
+    if ext in ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v"]:
+        return "videos"
+    if ext in ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]:
+        return "archives"
+    if ext in ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "csv", "json", "xml", "log"]:
+        return "documents"
+    if ext in ["mp3", "wav", "ogg", "flac", "aac", "m4a", "opus"]:
+        return "audio"
+    return "other"
 
 async def start_tg_client():
     global tg_app, STORAGE_CHAT_ID
@@ -92,7 +108,7 @@ async def upload_to_channel(file_path: str, filename: str):
         raise ValueError(f"Telegram error: {type(e).__name__} - {str(e)}")
 
 async def get_channel_files(search_query: str = None):
-    """Fetches all stored files from the Telegram channel using get_messages by ID range (allowed for bots)."""
+    """Fetches all stored files from the Telegram channel using get_messages by ID range."""
     global tg_app, STORAGE_CHAT_ID, max_known_id
     if not tg_app or not tg_app.is_connected:
         return []
@@ -101,11 +117,9 @@ async def get_channel_files(search_query: str = None):
     files = []
 
     try:
-        # Check IDs up to max_known_id + 50
         upper_bound = max(max_known_id + 50, 200)
         id_list = list(range(1, upper_bound))
 
-        # Query messages in chunks of 200
         for i in range(0, len(id_list), 200):
             batch = id_list[i:i + 200]
             msgs = await tg_app.get_messages(target_chat, batch)
@@ -148,17 +162,18 @@ async def get_channel_files(search_query: str = None):
                     continue
 
                 created_at = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else ""
+                category = get_file_category(filename, mime_type)
 
                 files.append({
                     "id": msg.id,
                     "filename": filename,
                     "file_size": file_size,
                     "mime_type": mime_type,
+                    "category": category,
                     "message_id": msg.id,
                     "created_at": created_at
                 })
 
-        # Sort files so newest files appear first
         files.sort(key=lambda x: x["id"], reverse=True)
 
     except Exception as e:
