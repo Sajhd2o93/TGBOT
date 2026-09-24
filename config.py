@@ -11,7 +11,10 @@ raw_channel = os.getenv("CHANNEL_ID", "0").strip()
 try:
     CHANNEL_ID = int(raw_channel)
 except ValueError:
-    CHANNEL_ID = raw_channel
+    if not raw_channel.startswith("@") and not raw_channel.startswith("-"):
+        CHANNEL_ID = f"@{raw_channel}"
+    else:
+        CHANNEL_ID = raw_channel
 
 PORT = int(os.getenv("PORT", "8000"))
 WEB_APP_URL = os.getenv("WEB_APP_URL", "").strip()
