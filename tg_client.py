@@ -7,6 +7,7 @@ from bot import register_bot_handlers
 
 tg_app = None
 STORAGE_CHAT_ID = None
+max_known_id = 100
 
 async def start_tg_client():
     global tg_app, STORAGE_CHAT_ID
@@ -59,7 +60,7 @@ async def stop_tg_client():
 
 async def upload_to_channel(file_path: str, filename: str):
     """Uploads a file to the Telegram storage channel and returns the message_id."""
-    global tg_app, STORAGE_CHAT_ID
+    global tg_app, STORAGE_CHAT_ID, max_known_id
     if not tg_app or not tg_app.is_connected:
         raise ValueError("Telegram Bot is not connected yet.")
 
@@ -83,14 +84,16 @@ async def upload_to_channel(file_path: str, filename: str):
             progress=progress_callback
         )
         print(f"✅ Upload complete! Message ID: {msg.id}")
+        if msg.id > max_known_id:
+            max_known_id = msg.id
         return msg.id
     except Exception as e:
         print(f"❌ Telegram send_document failed: {type(e).__name__} - {e}")
         raise ValueError(f"Telegram error: {type(e).__name__} - {str(e)}")
 
 async def get_channel_files(search_query: str = None):
-    """Fetches all stored files directly from Telegram channel history."""
-    global tg_app, STORAGE_CHAT_ID
+    """Fetches all stored files from the Telegram channel using get_messages by ID range (allowed for bots)."""
+    global tg_app, STORAGE_CHAT_ID, max_known_id
     if not tg_app or not tg_app.is_connected:
         return []
 
@@ -98,30 +101,68 @@ async def get_channel_files(search_query: str = None):
     files = []
 
     try:
-        async for msg in tg_app.get_chat_history(target_chat, limit=200):
-            media = msg.document or msg.video or msg.audio
-            if not media:
-                continue
+        # Check IDs up to max_known_id + 50
+        upper_bound = max(max_known_id + 50, 200)
+        id_list = list(range(1, upper_bound))
 
-            filename = getattr(media, "file_name", None) or f"file_{msg.id}"
-            file_size = getattr(media, "file_size", 0)
-            mime_type = getattr(media, "mime_type", "application/octet-stream")
+        # Query messages in chunks of 200
+        for i in range(0, len(id_list), 200):
+            batch = id_list[i:i + 200]
+            msgs = await tg_app.get_messages(target_chat, batch)
+            if not isinstance(msgs, list):
+                msgs = [msgs]
 
-            if search_query and search_query.lower() not in filename.lower():
-                continue
+            for msg in msgs:
+                if not msg:
+                    continue
+                
+                media = msg.document or msg.video or msg.audio or msg.photo
+                if not media:
+                    continue
 
-            created_at = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else ""
+                if msg.id > max_known_id:
+                    max_known_id = msg.id
 
-            files.append({
-                "id": msg.id,
-                "filename": filename,
-                "file_size": file_size,
-                "mime_type": mime_type,
-                "message_id": msg.id,
-                "created_at": created_at
-            })
+                if msg.document and msg.document.file_name:
+                    filename = msg.document.file_name
+                    file_size = msg.document.file_size
+                    mime_type = msg.document.mime_type
+                elif msg.video:
+                    filename = getattr(msg.video, "file_name", f"video_{msg.id}.mp4")
+                    file_size = msg.video.file_size
+                    mime_type = getattr(msg.video, "mime_type", "video/mp4")
+                elif msg.audio:
+                    filename = getattr(msg.audio, "file_name", f"audio_{msg.id}.mp3")
+                    file_size = msg.audio.file_size
+                    mime_type = getattr(msg.audio, "mime_type", "audio/mpeg")
+                elif msg.photo:
+                    filename = f"photo_{msg.id}.jpg"
+                    file_size = getattr(msg.photo, "file_size", 0)
+                    mime_type = "image/jpeg"
+                else:
+                    filename = f"file_{msg.id}"
+                    file_size = getattr(media, "file_size", 0)
+                    mime_type = getattr(media, "mime_type", "application/octet-stream")
+
+                if search_query and search_query.lower() not in filename.lower():
+                    continue
+
+                created_at = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else ""
+
+                files.append({
+                    "id": msg.id,
+                    "filename": filename,
+                    "file_size": file_size,
+                    "mime_type": mime_type,
+                    "message_id": msg.id,
+                    "created_at": created_at
+                })
+
+        # Sort files so newest files appear first
+        files.sort(key=lambda x: x["id"], reverse=True)
+
     except Exception as e:
-        print(f"Error fetching channel files: {e}")
+        print(f"Error fetching channel files via get_messages: {e}")
 
     return files
 
