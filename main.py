@@ -1,7 +1,7 @@
 import os
 import aiofiles
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -42,9 +42,13 @@ app = FastAPI(title="TG Drive", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-async def read_index():
+async def read_index(response: Response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     async with aiofiles.open("static/index.html", "r", encoding="utf-8") as f:
-        return await f.read()
+        content = await f.read()
+    return HTMLResponse(content=content, headers=response.headers)
 
 @app.get("/health")
 async def health_check():
