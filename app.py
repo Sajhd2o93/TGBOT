@@ -1,49 +1,71 @@
 import os
-import socket
+import asyncio
 import uvicorn
 from main import app
 
-def bind_all_candidate_ports():
-    sockets = []
-    # Infrlo buildpacks route to 3000 or 8000
-    candidate_ports = [3000, 8000, 8080, 80]
-    
-    env_port = os.getenv("PORT")
-    if env_port:
+async def start_tcp_forwarder(source_port: int, target_port: int):
+    """Forwards incoming TCP connections from source_port to target_port."""
+    async def handle_client(client_reader, client_writer):
         try:
-            p = int(env_port)
-            if p not in candidate_ports:
-                candidate_ports.insert(0, p)
-        except ValueError:
-            pass
+            target_reader, target_writer = await asyncio.open_connection('127.0.0.1', target_port)
+        except Exception:
+            client_writer.close()
+            return
 
-    for p in candidate_ports:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("0.0.0.0", p))
-            s.listen(128)
-            s.setblocking(False)
-            sockets.append(s)
-            print(f"✅ Uvicorn listening on port {p}")
-        except Exception as e:
-            print(f"⚠️ Port {p} unavailable: {e}")
-            
-    return sockets
+        async def pipe(r, w):
+            try:
+                while True:
+                    data = await r.read(65536)
+                    if not data:
+                        break
+                    w.write(data)
+                    await w.drain()
+            except Exception:
+                pass
+            finally:
+                try:
+                    w.close()
+                except Exception:
+                    pass
 
-if __name__ == "__main__":
-    bound_sockets = bind_all_candidate_ports()
+        await asyncio.gather(
+            pipe(client_reader, target_writer),
+            pipe(target_reader, client_writer)
+        )
+
+    try:
+        server = await asyncio.start_server(handle_client, '0.0.0.0', source_port)
+        print(f"🔗 Forwarder active: 0.0.0.0:{source_port} -> 127.0.0.1:{target_port}")
+        async with server:
+            await server.serve_forever()
+    except Exception as e:
+        print(f"Forwarder on {source_port} skipped: {e}")
+
+async def main():
+    primary_port = int(os.getenv("PORT", 3000))
+    other_ports = [p for p in [3000, 8000, 8080, 5000, 80] if p != primary_port]
 
     config = uvicorn.Config(
         app,
+        host="0.0.0.0",
+        port=primary_port,
         proxy_headers=True,
         forwarded_allow_ips="*",
         log_level="info"
     )
     server = uvicorn.Server(config)
 
-    print("🚀 Starting TG Cloud Drive server...")
-    if bound_sockets:
-        server.run(sockets=bound_sockets)
-    else:
-        server.run()
+    print(f"🚀 Launching primary Uvicorn on 0.0.0.0:{primary_port}...")
+    
+    forwarders = [start_tcp_forwarder(p, primary_port) for p in other_ports]
+    
+    await asyncio.gather(
+        server.serve(),
+        *forwarders
+    )
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
