@@ -42,15 +42,14 @@ app = FastAPI(title="Telegram Cloud Drive", lifespan=lifespan)
 async def log_requests_middleware(request: Request, call_next):
     start_time = time.time()
     client_ip = request.client.host if request.client else "unknown"
-    print(f"📥 [HTTP IN] {request.method} {request.url.path} | Client: {client_ip}")
     
     try:
         response = await call_next(request)
         process_time = (time.time() - start_time) * 1000
-        print(f"📤 [HTTP OUT] {request.method} {request.url.path} -> Status: {response.status_code} | Time: {process_time:.2f}ms")
+        print(f"📤 [HTTP {response.status_code}] {request.method} {request.url.path} | Time: {process_time:.1f}ms | Client: {client_ip}")
         return response
     except Exception as e:
-        print(f"❌ [HTTP ERROR] {request.method} {request.url.path} -> Exception: {str(e)}")
+        print(f"❌ [HTTP EXCEPTION] {request.method} {request.url.path} -> {type(e).__name__}: {str(e)}")
         raise e
 
 # Mount static directory
@@ -63,7 +62,7 @@ async def read_index():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "tg_connected": tg_app.is_connected, "port": PORT}
+    return {"status": "ok", "tg_connected": tg_app.is_connected}
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None)):
@@ -72,19 +71,21 @@ async def list_files(search: str = Query(None)):
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    temp_path = os.path.join(UPLOAD_DIR, file.filename)
+    safe_filename = os.path.basename(file.filename)
+    temp_path = os.path.abspath(os.path.join(UPLOAD_DIR, safe_filename))
     
     try:
         async with aiofiles.open(temp_path, "wb") as out_file:
             while chunk := await file.read(4 * 1024 * 1024):
                 await out_file.write(chunk)
+            await out_file.flush()
 
         file_size = os.path.getsize(temp_path)
 
-        message_id = await upload_to_channel(temp_path, file.filename)
+        message_id = await upload_to_channel(temp_path, safe_filename)
 
         file_id = await add_file(
-            filename=file.filename,
+            filename=safe_filename,
             file_size=file_size,
             mime_type=file.content_type,
             message_id=message_id
@@ -92,18 +93,21 @@ async def upload_file(file: UploadFile = File(...)):
 
         return {
             "id": file_id,
-            "filename": file.filename,
+            "filename": safe_filename,
             "file_size": file_size,
             "message_id": message_id
         }
 
     except Exception as e:
-        print(f"Upload error: {e}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        print(f"❌ API Upload Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         if os.path.exists(temp_path):
-            os.remove(temp_path)
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
 @app.get("/api/download/{file_id}")
 async def download_file(file_id: int):

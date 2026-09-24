@@ -14,10 +14,11 @@ tg_app = Client(
 )
 
 _is_started = False
+STORAGE_CHAT_ID = None
 
 async def start_tg_client():
-    global _is_started
-    if _is_started or tg_app.is_connected:
+    global _is_started, STORAGE_CHAT_ID
+    if _is_started and tg_app.is_connected:
         return True
 
     if not BOT_TOKEN or not API_ID or not API_HASH or API_ID == 0:
@@ -29,13 +30,14 @@ async def start_tg_client():
         me = await tg_app.get_me()
         print(f"✅ Telegram Bot @{me.username} (ID: {me.id}) connected successfully!")
         
-        # Test access to channel
+        # Resolve target channel to its persistent integer ID
         try:
             chat = await tg_app.get_chat(CHANNEL_ID)
-            print(f"✅ Channel storage verified: '{chat.title}' (ID: {CHANNEL_ID})")
+            STORAGE_CHAT_ID = chat.id
+            print(f"✅ Channel storage verified: '{chat.title}' (Resolved Integer ID: {STORAGE_CHAT_ID})")
         except Exception as e:
-            print(f"⚠️ Warning regarding CHANNEL_ID ({CHANNEL_ID}): {e}")
-            print("👉 Please ensure the bot is added as an ADMINISTRATOR with post permissions to this channel!")
+            print(f"⚠️ Warning resolving CHANNEL_ID ({CHANNEL_ID}): {e}")
+            STORAGE_CHAT_ID = CHANNEL_ID
         
         return True
     except FloodWait as e:
@@ -54,21 +56,32 @@ async def stop_tg_client():
     except Exception as e:
         print(f"Error stopping Telegram client: {e}")
 
-async def upload_to_channel(file_path: str, filename: str, progress_callback=None):
+async def upload_to_channel(file_path: str, filename: str):
     """Uploads a file to the Telegram storage channel and returns the message_id."""
+    global STORAGE_CHAT_ID
     if not tg_app.is_connected:
-        raise ValueError("Telegram Bot is not connected yet. Check Infrlo logs for FLOOD_WAIT or credentials.")
+        raise ValueError("Telegram Bot is not connected yet.")
 
-    print(f"📤 Uploading '{filename}' to Telegram channel ({CHANNEL_ID})...")
+    target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
+    abs_path = os.path.abspath(file_path)
+    file_size = os.path.getsize(abs_path)
+    
+    print(f"📤 Starting MTProto upload for '{filename}' ({file_size} bytes) -> Chat ID: {target_chat}...")
+
+    def progress_callback(current, total):
+        pct = int(current * 100 / total) if total > 0 else 0
+        if pct % 25 == 0 or current == total:
+            print(f"   ⏳ Telegram upload '{filename}': {pct}% ({current}/{total} bytes)")
+
     try:
         msg = await tg_app.send_document(
-            chat_id=CHANNEL_ID,
-            document=file_path,
+            chat_id=target_chat,
+            document=abs_path,
             file_name=filename,
             caption=f"📁 File: `{filename}`",
             progress=progress_callback
         )
-        print(f"✅ File '{filename}' successfully saved to channel. Message ID: {msg.id}")
+        print(f"✅ Upload complete! Message ID: {msg.id} in chat {target_chat}")
         return msg.id
     except Exception as e:
         print(f"❌ Telegram send_document failed: {type(e).__name__} - {e}")
@@ -76,10 +89,12 @@ async def upload_to_channel(file_path: str, filename: str, progress_callback=Non
 
 async def stream_file_from_channel(message_id: int):
     """Yields chunks of the file stored in Telegram channel message."""
+    global STORAGE_CHAT_ID
     if not tg_app.is_connected:
         raise ValueError("Telegram Bot is not connected.")
 
-    msg = await tg_app.get_messages(CHANNEL_ID, message_id)
+    target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
+    msg = await tg_app.get_messages(target_chat, message_id)
     if not msg or not (msg.document or msg.video or msg.audio or msg.photo):
         raise ValueError("File not found in Telegram storage channel.")
 
@@ -88,10 +103,12 @@ async def stream_file_from_channel(message_id: int):
 
 async def delete_from_channel(message_id: int):
     """Deletes the file message from Telegram channel."""
+    global STORAGE_CHAT_ID
     if not tg_app.is_connected:
         return
     try:
-        await tg_app.delete_messages(CHANNEL_ID, message_id)
+        target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
+        await tg_app.delete_messages(target_chat, message_id)
         print(f"🗑️ Deleted message {message_id} from Telegram channel.")
     except Exception as e:
         print(f"Error deleting message {message_id} from Telegram: {e}")
