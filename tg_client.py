@@ -17,7 +17,7 @@ _is_started = False
 STORAGE_CHAT_ID = None
 
 async def start_tg_client():
-    global _is_started, STORAGE_CHAT_ID
+    global _is_started, STORAGE_CHAT_ID, tg_app
     if _is_started and tg_app.is_connected:
         return True
 
@@ -25,6 +25,9 @@ async def start_tg_client():
         print("⚠️ WARNING: BOT_TOKEN, API_ID, or API_HASH is missing in Environment Variables!")
         return False
     try:
+        # Bind Pyrogram to current running asyncio event loop
+        tg_app.loop = asyncio.get_running_loop()
+        
         await tg_app.start()
         _is_started = True
         me = await tg_app.get_me()
