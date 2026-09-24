@@ -1,28 +1,27 @@
 import os
 import aiofiles
-import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import UPLOAD_DIR
-from database import init_db, add_file, get_all_files, get_file_by_id, delete_file_by_id
-from tg_client import tg_app, start_tg_client, stop_tg_client, upload_to_channel, stream_file_from_channel, delete_from_channel
+from tg_client import (
+    tg_app,
+    start_tg_client,
+    stop_tg_client,
+    upload_to_channel,
+    get_channel_files,
+    stream_file_from_channel,
+    delete_from_channel,
+    STORAGE_CHAT_ID
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Initializing SQLite database...")
-    try:
-        await init_db()
-    except Exception as e:
-        print(f"Database init error: {e}")
-    
     print("⚡ Starting Telegram MTProto client...")
     await start_tg_client()
-    
     yield
-    
     print("🛑 Stopping Telegram client...")
     await stop_tg_client()
 
@@ -42,7 +41,7 @@ async def health_check():
 
 @app.get("/api/files")
 async def list_files(search: str = Query(None)):
-    files = await get_all_files(search_query=search)
+    files = await get_channel_files(search_query=search)
     return files
 
 @app.post("/api/upload")
@@ -60,15 +59,8 @@ async def upload_file(file: UploadFile = File(...)):
 
         message_id = await upload_to_channel(temp_path, safe_filename)
 
-        file_id = await add_file(
-            filename=safe_filename,
-            file_size=file_size,
-            mime_type=file.content_type,
-            message_id=message_id
-        )
-
         return {
-            "id": file_id,
+            "id": message_id,
             "filename": safe_filename,
             "file_size": file_size,
             "message_id": message_id
@@ -85,31 +77,33 @@ async def upload_file(file: UploadFile = File(...)):
             except Exception:
                 pass
 
-@app.get("/api/download/{file_id}")
-async def download_file(file_id: int):
-    file_info = await get_file_by_id(file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
+@app.get("/api/download/{message_id}")
+async def download_file(message_id: int):
+    target_chat = STORAGE_CHAT_ID or os.getenv("CHANNEL_ID")
+    try:
+        msg = await tg_app.get_messages(target_chat, message_id)
+        if not msg:
+            raise HTTPException(status_code=404, detail="File not found")
 
-    filename = file_info["filename"]
-    mime_type = file_info["mime_type"] or "application/octet-stream"
+        media = msg.document or msg.video or msg.audio
+        filename = getattr(media, "file_name", f"file_{message_id}")
+        file_size = getattr(media, "file_size", 0)
+        mime_type = getattr(media, "mime_type", "application/octet-stream")
 
-    headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
-        "Content-Length": str(file_info["file_size"])
-    }
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(file_size)
+        }
 
-    return StreamingResponse(
-        stream_file_from_channel(file_info["message_id"]),
-        media_type=mime_type,
-        headers=headers
-    )
+        return StreamingResponse(
+            stream_file_from_channel(message_id),
+            media_type=mime_type,
+            headers=headers
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Cannot download file: {e}")
 
-@app.delete("/api/files/{file_id}")
-async def delete_file(file_id: int):
-    message_id = await delete_file_by_id(file_id)
-    if not message_id:
-        raise HTTPException(status_code=404, detail="File not found in database")
-
+@app.delete("/api/files/{message_id}")
+async def delete_file(message_id: int):
     await delete_from_channel(message_id)
     return {"status": "success", "message": "File deleted"}

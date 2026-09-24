@@ -17,7 +17,6 @@ async def start_tg_client():
 
     loop = asyncio.get_running_loop()
     
-    # Initialize Client strictly within the running event loop
     tg_app = Client(
         "tg_cloud_bot",
         api_id=API_ID,
@@ -34,7 +33,6 @@ async def start_tg_client():
         me = await tg_app.get_me()
         print(f"✅ Telegram Bot @{me.username} (ID: {me.id}) connected successfully!")
         
-        # Resolve target channel to its persistent integer ID
         try:
             chat = await tg_app.get_chat(CHANNEL_ID)
             STORAGE_CHAT_ID = chat.id
@@ -69,7 +67,7 @@ async def upload_to_channel(file_path: str, filename: str):
     abs_path = os.path.abspath(file_path)
     file_size = os.path.getsize(abs_path)
     
-    print(f"📤 Starting MTProto upload for '{filename}' ({file_size} bytes) -> Chat ID: {target_chat}...")
+    print(f"📤 Uploading '{filename}' ({file_size} bytes) -> Chat ID: {target_chat}...")
 
     def progress_callback(current, total):
         pct = int(current * 100 / total) if total > 0 else 0
@@ -81,14 +79,51 @@ async def upload_to_channel(file_path: str, filename: str):
             chat_id=target_chat,
             document=abs_path,
             file_name=filename,
-            caption=f"📁 File: `{filename}`",
+            caption=f"📁 `{filename}`",
             progress=progress_callback
         )
-        print(f"✅ Upload complete! Message ID: {msg.id} in chat {target_chat}")
+        print(f"✅ Upload complete! Message ID: {msg.id}")
         return msg.id
     except Exception as e:
         print(f"❌ Telegram send_document failed: {type(e).__name__} - {e}")
         raise ValueError(f"Telegram error: {type(e).__name__} - {str(e)}")
+
+async def get_channel_files(search_query: str = None):
+    """Fetches all stored files directly from Telegram channel history."""
+    global tg_app, STORAGE_CHAT_ID
+    if not tg_app or not tg_app.is_connected:
+        return []
+
+    target_chat = STORAGE_CHAT_ID if STORAGE_CHAT_ID is not None else CHANNEL_ID
+    files = []
+
+    try:
+        async for msg in tg_app.get_chat_history(target_chat, limit=200):
+            media = msg.document or msg.video or msg.audio
+            if not media:
+                continue
+
+            filename = getattr(media, "file_name", None) or f"file_{msg.id}"
+            file_size = getattr(media, "file_size", 0)
+            mime_type = getattr(media, "mime_type", "application/octet-stream")
+
+            if search_query and search_query.lower() not in filename.lower():
+                continue
+
+            created_at = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else ""
+
+            files.append({
+                "id": msg.id,
+                "filename": filename,
+                "file_size": file_size,
+                "mime_type": mime_type,
+                "message_id": msg.id,
+                "created_at": created_at
+            })
+    except Exception as e:
+        print(f"Error fetching channel files: {e}")
+
+    return files
 
 async def stream_file_from_channel(message_id: int):
     """Yields chunks of the file stored in Telegram channel message."""
